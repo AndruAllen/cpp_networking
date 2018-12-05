@@ -46,8 +46,16 @@ int client (char * server_name, char* port)
 	while(1){
 		cin >> temp;
 		cout <<"Now Attempting to send a message "<< server_name << endl;
-		sprintf (buf, temp.c_str());
-		send (sockfd, buf, strlen (buf)+1, 0);
+		if(temp == "!!" || temp == "!") {
+			sprintf (buf, temp.c_str());
+			send (sockfd, buf, strlen (buf)+1, 0);
+		} else{
+			const char* stuff = "test data from john here";
+			temp = "test data from john here";
+			cout << "testing: " << stuff << " == " << temp.c_str() << "?" << endl;
+			sprintf (buf, temp.c_str());
+			send (sockfd, buf, strlen (buf)+1, 0);
+		}
 		recv (sockfd, buf, 1024, 0);
 		cout << "Received " << buf << " from the server" << endl;
 		if(buf[0] == '!'){

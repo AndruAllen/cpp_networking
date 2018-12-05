@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <string.h>
@@ -7,10 +8,44 @@
 #include <unistd.h>
 #include <iostream>
 #include <vector>
+#include <errno.h>
+#include <pthread.h>
+
 using namespace std;
 
-int server (char* port)
-{
+void* server_thread_function(void* arg) {
+    char buf [1024];
+    int my_fd = *((int*) arg); // dereference the void pointer
+
+    while(1){
+        recv (my_fd, buf, sizeof (buf), 0);
+        cout << "server: received msg: " << buf << endl;
+    
+        if(buf[0] == '!') { //!
+            cout << "closing socket " << my_fd << endl;
+            if(buf[1] == '!'){ //!!
+                cout << "exitting" << endl;
+                exit(0); // exit entire server, must join all client threads first so possib ERROR fixed if you want by pthread_cont_t and poling on server side
+            }
+            close(my_fd);
+            break;
+        } else {
+            // send 
+            char *msg = "Hello to you";
+            dprintf (1, msg); // std output which should be cout?
+            cout << " <- was sent" << endl;
+            if (send(my_fd, msg, strlen(msg)+1, 0) == -1) {
+                perror("send");
+            } 
+        }
+
+    }
+
+    pthread_exit(NULL);
+    return (void*)NULL;
+}
+
+int server (char* port) {
 	int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
     new_fd = 0;
     struct addrinfo hints, *serv;
@@ -18,6 +53,7 @@ int server (char* port)
     socklen_t sin_size;
     char s[INET6_ADDRSTRLEN];
     int rv;
+    //pthread_mutex_t server_shutdown = PTHREAD_MUTEX_INITIALIZER; // used for server shutdown if you want
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -43,54 +79,47 @@ int server (char* port)
         perror("listen");
         exit(1);
     }
+
 	vector<int> new_fds;
+    vector<pthread_t> server_threads;
+    int ret_val;
 	cout << "server: waiting for connections..." << endl;
-    char buf [1024];
-	while(1) 
-	{  
+	while(1) {  
         // main accept() loop
         sin_size = sizeof their_addr;
         if(new_fd == 0){
             new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-            new_fds.push_back(int(new_fd));
-            cout << "server: got connection at: " << new_fd << endl;
-        }
-        if (new_fd == -1) {
-            perror("accept");
-            continue;
+            if (new_fd == -1) {
+                perror("accept");
+                continue;
+            } else {
+                new_fds.push_back(int(new_fd)); // to ensure deep copy
+                server_threads.push_back(pthread_t(0)); // to ensure deep copy
+                ret_val = pthread_create(&(server_threads.back()), NULL, &server_thread_function, (void*)&(new_fds.back())); // might be a problem using same temp vals
+                if(ret_val != 0){
+                    cerr << "Seems like creating thread for " << new_fd << " failed " << server_threads.back() << endl;
+                    exit(1);
+                }
+                ret_val = pthread_detach(server_threads.back());
+                if(ret_val != 0){
+                    cerr << "Seems like detaching thread for " << new_fd << " failed " << server_threads.back() << endl;
+                    exit(1);
+                }
+                cout << "server: got connection at: " << new_fd << endl;
+            }
         }
         new_fd = 0;
         //inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-		recv (new_fd, buf, sizeof (buf), 0);
-		cout << "server: received msg: " << buf << endl;
-		
-        if(buf[0] == '!'){ //!
-            cout << "closing socket" << endl;
-            close(new_fd);
-            new_fd = 0;
-            if(buf[1] == '!'){ //!!
-                cout << "exitting" << endl;
-                break;
-            }
-        } else {
-		  // send 
-		  char *msg = "Hello to you";
-          dprintf (1, msg); // std output which should be cout?
-          cout << " <- was sent" << endl;
-          if (send(new_fd, msg, strlen(msg)+1, 0) == -1) {
-            perror("send");
-          }	
-        }
     }
-
+    close(sockfd);
     return 0;
 }
 
 int main (int ac, char ** av)
 {
     if (ac < 2){
-        cout << "Usage: ./server <port no>" << endl;
+        cout << "Usage: ./server <port no> - try 127.0.0.1" << endl;
         exit (-1);
     }
-	server (av [1]);	
+	server (av [1]);
 }
