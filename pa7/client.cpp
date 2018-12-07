@@ -237,12 +237,12 @@ int main(int argc, char * argv[]) {
     }
     int pid = -1;
     if(run_local){
-        pid = fork();
+        //pid = fork();
     }
     if (pid == 0 && run_local){
         const char* send_it = p;
         //cout << "running server now" << send_it << endl;
-        execl("dataserver", "dataserver", send_it, (char*) NULL);
+        //execl("dataserver", "dataserver", send_it, (char*) NULL);
     }
     else {
         //string temp_crap_never = "";
