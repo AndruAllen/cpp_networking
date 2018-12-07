@@ -212,6 +212,7 @@ int NetworkRequestChannel::cwrite(string msg) {
 	sprintf (buf, msg.c_str());
 
 	if (send(my_fd, buf, msg.size()+1, 0) < 0) { // msg.size() + 1 to include the NULL byte
+		cerr << buf << endl;
 		execl("rmv", (char*) NULL);
 		return -1;
 		EXITONERROR ("cwrite");
