@@ -222,7 +222,7 @@ int main(int argc, char * argv[]) {
             case 'h':
                 h = optarg;
                 if(strcmp(h,lcl_hst1)==0 || strcmp(h,lcl_hst2)==0){
-                    cout << "\nClient program assumes that you have not started a server instance and will start one for you at 127.0.0.1" << endl;
+                    //cout << "\nClient program assumes that you have not started a server instance and will start one for you at 127.0.0.1" << endl;
                     h = "127.0.0.1";
                     run_local = true;
                 } else {
@@ -245,13 +245,13 @@ int main(int argc, char * argv[]) {
         execl("dataserver", "dataserver", send_it, (char*) NULL);
     }
     else {
-        string temp_crap_never = "";
-        cout << "\n\n\n" << endl << "Please confirm by typing Y" << endl;
-        cin >> temp_crap_never;
+        //string temp_crap_never = "";
+        //cout << "\n\n\n" << endl << "Please confirm by typing Y" << endl;
+        //cin >> temp_crap_never;
 
-        hist = Histogram(); // just for safety
-        signal(SIGALRM, animate_hist);
-        alarm(2);
+        //hist = Histogram(); // just for safety
+        //signal(SIGALRM, animate_hist);
+        //alarm(2);
 
         struct timeval tp_start, tp_end; /* Used to compute elapsed time. */
         gettimeofday(&tp_start, 0); // start timer
@@ -428,11 +428,11 @@ int main(int argc, char * argv[]) {
             delete workerChannels[i];
         }
         //cout << "All Done!!!" << endl; 
-        system("clear");
-        hist.print();
+        //system("clear");
+        //hist.print();
         cout<< get_time_diff(&tp_start, &tp_end) << endl; // <<"Time taken: "
 
-        cout << "\n" << endl << "Please allow time (30s) before using the same port again as it is in the process of clearing up memory and exitting server process with exit(0) and the port needs time to open again as it propegates through the system.\n" << endl;
+        //cout << "\n" << endl << "Please allow time (30s) before using the same port again as it is in the process of clearing up memory and exitting server process with exit(0) and the port needs time to open again as it propegates through the system.\n" << endl;
     }
     return 0;
 }

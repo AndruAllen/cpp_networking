@@ -44,6 +44,9 @@ const int MAX_MESSAGE = 255;
 void* server_thread_function(void* arg) {
     char buf [MAX_MESSAGE];
     int my_fd = *((int*) arg); // dereference the void pointer
+    int possib_sockfd = int(my_fd);
+    my_fd = my_fd / 100000;
+    possib_sockfd = possib_sockfd - (my_fd * 100000);
 	if(my_fd <= 0){
 		cerr << "what the heck? " << my_fd << " " << (int*) arg << endl;
 	}
@@ -57,9 +60,11 @@ void* server_thread_function(void* arg) {
     
         if(buf[0] == '!') { //!
             //pscout << "closing socket " << my_fd << endl;
-            if(buf[1] == '!'){ //!!
+	    if(buf[1] == '!'){ //!!
                 cout << "exitting" << endl;
-                exit(0); // exit entire server, must join all client threads first so possib ERROR fixed if you want by pthread_cont_t and poling on server side
+		//close(possib_sockfd);
+		//close(my_fd);
+                //exit(0); // exit entire server, must join all client threads first so possib ERROR fixed if you want by pthread_cont_t and poling on server side
             }
             close(my_fd);
             break;
@@ -75,7 +80,7 @@ void* server_thread_function(void* arg) {
             	} 
 						} else {
 							const char *msg = "unknown stuff";
-							cerr << msg << " <- you've screwed up because you didn't send data: " << buf  << "|" << endl;
+						        cerr << my_fd << " " << msg << " <- you've screwed up because you didn't send data: " << buf  << "|" << endl;
 							if (send(my_fd, msg, strlen(msg)+1, 0) == -1) {
 								cerr << "\nhere2" << endl;
 								perror("send");
@@ -176,6 +181,8 @@ int NetworkRequestChannel::handle_process_loop() {
                 continue;
             } else {
                 new_fds.push_back(new int(temp)); // to ensure deep copy
+		
+		*new_fds.back() = *new_fds.back()*100000 + my_fd; 
                 //cerr << "vals check: " << temp << " " << new_fds.back() << endl;
 		server_threads.push_back(new pthread_t(0)); // to ensure deep copy
                 ret_val = pthread_create((server_threads.back()), NULL, &server_thread_function, (void*)(new_fds.back())); // might be a problem using same temp vals
