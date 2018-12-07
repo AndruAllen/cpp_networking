@@ -15,7 +15,6 @@
 #include <iomanip>
 
 #include <sys/time.h>
-#include <sys/select.h>
 #include <cassert>
 #include <assert.h>
 
@@ -49,16 +48,7 @@ struct vals_for_workers {
     SafeBuffer* buffJohn;
     SafeBuffer* buffJane;
     //Histogram* hist;
-    RequestChannel* req_chan;
-};
-
-struct val_for_workers {
-    SafeBuffer* buff;
-    SafeBuffer* buffJoe;
-    SafeBuffer* buffJohn;
-    SafeBuffer* buffJane;
-    //Histogram* hist;
-    vector<RequestChannel*> *req_chans;
+    NetworkRequestChannel* req_chan;
 };
 
 struct vals_for_stat {
@@ -89,122 +79,67 @@ void* request_quits(void* arg) {
 }
 
 void* request_thread_function(void* arg) {
-	/*
-		Fill in this function.
+    /*
+        Fill in this function.
 
-		The loop body should require only a single line of code.
-		The loop conditions should be somewhat intuitive.
+        The loop body should require only a single line of code.
+        The loop conditions should be somewhat intuitive.
 
-		In both thread functions, the arg parameter
-		will be used to pass parameters to the function.
-		One of the parameters for the request thread
-		function MUST be the name of the "patient" for whom
-		the data requests are being pushed: you MAY NOT
-		create 3 copies of this function, one for each "patient".
-	 */
+        In both thread functions, the arg parameter
+        will be used to pass parameters to the function.
+        One of the parameters for the request thread
+        function MUST be the name of the "patient" for whom
+        the data requests are being pushed: you MAY NOT
+        create 3 copies of this function, one for each "patient".
+     */
 
-	for(int i = 0; i < ((vals_passed*)arg)->n; i++) {
+    for(int i = 0; i < ((vals_passed*)arg)->n; i++) {
         (((vals_passed*)arg)->buff)->push("data "+((vals_passed*)arg)->name);
-	}
+    }
     pthread_exit(NULL);
     return (void*)NULL;
 }
 
 void* worker_thread_function(void* arg) {
     /*
-		Fill in this function. 
+        Fill in this function. 
 
-		Make sure it terminates only when, and not before,
-		all the requests have been processed.
+        Make sure it terminates only when, and not before,
+        all the requests have been processed.
 
-		Each thread must have its own dedicated
-		RequestChannel. Make sure that if you
-		construct a RequestChannel (or any object)
-		using "new" that you "delete" it properly,
-		and that you send a "quit" request for every
-		RequestChannel you construct regardless of
-		whether you used "new" for it.
+        Each thread must have its own dedicated
+        RequestChannel. Make sure that if you
+        construct a RequestChannel (or any object)
+        using "new" that you "delete" it properly,
+        and that you send a "quit" request for every
+        RequestChannel you construct regardless of
+        whether you used "new" for it.
      */
 
-    vector<RequestChannel*> *chans_ptr = (((val_for_workers*)arg)->req_chans);
-    int num_chans = chans_ptr->size();
-    int cnt_for_quit = 0;
-    bool quit_yet = false;
-    vector<bool> quit;
-    for (int i=0; i<num_chans; i++){
-        quit.push_back(false);
-    }
-    vector<string> requests;
-    for (int i=0; i<num_chans; i++){
-        requests.push_back("");
-    }
-    fd_set rfds;
-    int rv = 0;
-    int n_temp, temps;
-    struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 50000;
+    NetworkRequestChannel* workerChannel = (((vals_for_workers*)arg)->req_chan);
 
-    while(!quit_yet){
-        for(int i = 0; i < num_chans; i++){
-            if(!quit[i]){
-                if(requests[i] == ""){// possib error, requests
-                    requests[i] = (((val_for_workers*)arg)->buff)->pop();
-                    chans_ptr->at(i)->cwrite(requests[i]);
-                    if(requests[i] == "quit") { // will be pushed after request threads are joined
-                        quit[i] = true;
-                        cnt_for_quit++;
-                        if(cnt_for_quit == num_chans){
-                            quit_yet = true;
-                        }
-                    } 
-                }
-            }
-        }
-        if(quit_yet){
-            break; // so as to not waste stuff waiting or getting stuck if all have quit
-        }
-        fd_set rfds;
-        FD_ZERO(&rfds);
-        n_temp = 0;
-        for(int i = 0; i < num_chans; i++){
-            if(!quit[i]){
-                FD_SET(chans_ptr->at(i)->read_fd(), &rfds);
-                if(n_temp < chans_ptr->at(i)->read_fd()){
-                    n_temp = chans_ptr->at(i)->read_fd();
-                }
-            }
-        }
-        rv = select(n_temp + 1, &rfds, NULL, NULL, &tv);
+    while(true) {
+        string request = (((vals_for_workers*)arg)->buff)->pop();
+        //workerChannel->cwrite(request);
 
-        if(rv == -1){ // fake it till you make it...
-            cerr << "error with select " << n_temp << " " << FD_ISSET(temps, &rfds) << endl;
-        } else if(rv == 0){
-            cerr << "timeout shouldn't happen" << n_temp << endl;
-            quit_yet = true;
+        if(request == "quit") { // will be pushed after request threads are joined
+            workerChannel->cwrite("!"); // backend logic
+            break;
         } else{
-            for(int i = 0; i < num_chans; i++){
-                if(!quit[i]){
-                    if(FD_ISSET(chans_ptr->at(i)->read_fd(), &rfds)){ // found a fd that is set
-                        string response = chans_ptr->at(i)->cread(); // handle response since it exists
-                        if(requests[i] == "data Joe Smith"){
-                            // buff Joe
-                            (((val_for_workers*)arg)->buffJoe)->push(response);
-                        } else if(requests[i] == "data John Smith"){
-                            // buff John
-                            (((val_for_workers*)arg)->buffJohn)->push(response);
-                        } else if(requests[i] == "data Jane Smith"){
-                            // buff Jane
-                            (((val_for_workers*)arg)->buffJane)->push(response);
-                        } else{
-                            cerr << "requests was unexpected: " << requests[i]  << " |" << endl;
-                        }
-                        //cout << response << endl;
-                        requests[i] = "";
-                    }
-                }
-            } 
-        }        
+            workerChannel->cwrite(request);
+            string response = workerChannel->cread();
+            if(request == "data Joe Smith"){
+                // buff Joe
+                (((vals_for_workers*)arg)->buffJoe)->push(response);
+            } else if(request == "data John Smith"){
+                // buff John
+                (((vals_for_workers*)arg)->buffJohn)->push(response);
+            } else if(request == "data Jane Smith"){
+                // buff Jane
+                (((vals_for_workers*)arg)->buffJane)->push(response);
+            }
+            //(((vals_for_workers*)arg)->hist)->update(request, response);
+        }
     }
     pthread_exit(NULL);
     return (void*)NULL;
@@ -256,12 +191,18 @@ void animate_hist(int signa){
 }
 
 int main(int argc, char * argv[]) {
-    int num_worker_threadss = 3;
     int n = 100; //default number of requests per "patient"
     int w = 1; //default number of worker threads
     int b = 3 * n; // default capacity of the request buffer, you should change this default
     int opt = 0;
-    while ((opt = getopt(argc, argv, "n:w:b:")) != -1) {
+    char* h = "127.0.0.1"; // default to local host
+    char* p = "8080"; // default to port 8080
+    bool run_local = true; // default to running locally
+
+    char* lcl_hst1 = "localhost";
+    char* lcl_hst2 = "127.0.0.1";
+
+    while ((opt = getopt(argc, argv, "n:w:b:i:h:p:")) != -1) {
         switch (opt) {
             case 'n':
                 n = atoi(optarg);
@@ -270,19 +211,44 @@ int main(int argc, char * argv[]) {
                 w = atoi(optarg); //This won't do a whole lot until you fill in the worker thread function
                 break;
             case 'b':
-                b = atoi (optarg);
+                b = atoi(optarg);
                 if(b < 3){
                     b = 3;
                 }
                 break;
+            case 'i':
+                // only using network request channel so no need
+                break;
+            case 'h':
+                h = optarg;
+                if(strcmp(h,lcl_hst1)==0 || strcmp(h,lcl_hst2)==0){
+                    cout << "\nClient program assumes that you have not started a server instance and will start one for you at 127.0.0.1" << endl;
+                    h = "127.0.0.1";
+                    run_local = true;
+                } else {
+                    cout << "\nClient program assumes that you have started a server instance at " << h << endl;
+                    run_local = false;
+                }
+                break;
+            case 'p':
+                p = optarg;
+                break;
         }
     }
+    int pid = -1;
+    if(run_local){
+        pid = fork();
+    }
+    if (pid == 0 && run_local){
+        const char* send_it = p;
+        //cout << send_it << endl;
+        execl("dataserver", "dataserver", send_it, (char*) NULL);
+    }
+    else {
+        string temp_crap_never = "";
+        cout << "\n\n\n" << endl << "Please confirm by typing Y" << endl;
+        cin >> temp_crap_never;
 
-    int pid = fork();
-	if (pid == 0){
-		execl("dataserver", (char*) NULL);
-	}
-	else {
         hist = Histogram(); // just for safety
         signal(SIGALRM, animate_hist);
         alarm(2);
@@ -296,11 +262,11 @@ int main(int argc, char * argv[]) {
 
         //cout << "CLIENT STARTED:" << endl;
         //cout << "Establishing control channel... " << flush;
-        RequestChannel *chan = new RequestChannel("control", RequestChannel::CLIENT_SIDE);
+        NetworkRequestChannel *chan = new NetworkRequestChannel("control", RequestChannel::CLIENT_SIDE, h, p);
         //cout << "done." << endl<< flush;
 
         int size_of_buffer = b;
-		SafeBuffer request_buffer(size_of_buffer);
+        SafeBuffer request_buffer(size_of_buffer);
         int stat_buff_size = size_of_buffer / 3;
         SafeBuffer r_buffJoe(stat_buff_size);
         SafeBuffer r_buffJohn(stat_buff_size);
@@ -363,53 +329,38 @@ int main(int argc, char * argv[]) {
             }
         }*/
 
-        vector<pthread_t*> worker_threadss;
-        worker_threadss.push_back(new pthread_t);
-        vector<RequestChannel*> workerChannels;
-        val_for_workers* temp_worker_val = new val_for_workers;
+        pthread_t worker_threads[w];
+        vector<NetworkRequestChannel*> workerChannels;
+        vals_for_workers* temp_worker_vals = new vals_for_workers[w];
         bool no_error = true;
 
-        if(num_worker_threadss > w){
-            num_worker_threadss = w;
-        }
-        int div_w = w / num_worker_threadss;
-        if(div_w < 1){
-            div_w = 1;
-        }
-        
-
+        //cout << "creating worker threads" << endl;
 
         for(int i = 0; i < w; i++) {
-                // create workers
-                try{
-                    //temp_worker_vals[i].hist = &hist;
-                    chan->cwrite("newchannel");
-                    string s = chan->cread();
-                    workerChannels.push_back(new RequestChannel(s, RequestChannel::CLIENT_SIDE));
-                    //cout << workerChannels.at(w_i).at(i) << endl;
-                } catch(exception& e){
-                    execl("rmv", (char*) NULL);
-                    no_error = false;
-                    break;
+            // create workers
+            try{
+                temp_worker_vals[i].buff = &request_buffer;
+                // TO DO: add in buffer for each patient
+                temp_worker_vals[i].buffJoe = &r_buffJoe;
+                temp_worker_vals[i].buffJohn = &r_buffJohn;
+                temp_worker_vals[i].buffJane = &r_buffJane;
+                //temp_worker_vals[i].hist = &hist;
+                //chan->cwrite("newchannel");
+                //string s = chan->cread();
+                workerChannels.push_back(new NetworkRequestChannel("none", RequestChannel::CLIENT_SIDE, h, p));
+                temp_worker_vals[i].req_chan = workerChannels[i];
+                ret_val =  pthread_create(&worker_threads[i], NULL, &worker_thread_function, (void*)&temp_worker_vals[i]); // might be a problem using same temp vals
+                if(ret_val != 0){
+                    cerr << "Seems like creating thread for worker_thread[" << i << "] failed" << endl;
+                    throw runtime_error("Well you need more file space...");
                 }
-        }
-        temp_worker_val->buff = &request_buffer;
-        temp_worker_val->buffJoe = &r_buffJoe;
-        temp_worker_val->buffJohn = &r_buffJohn;
-        temp_worker_val->buffJane = &r_buffJane;
-        temp_worker_val->req_chans = &workerChannels;
-
-        cout << "num worker threads: " << num_worker_threadss << "\nnum of chans per: " << div_w << endl;
-        
-        for(int w_i = 0; w_i < worker_threadss.size(); w_i++){
-            ret_val = pthread_create(worker_threadss.at(w_i), NULL, &worker_thread_function, (void*)temp_worker_val); // might be a problem using same temp vals
-            if(ret_val != 0){
-                cerr << "Seems like creating thread for worker_thread failed" << endl;
-                throw runtime_error("Well you need more file space...");
+            } catch(exception& e){
+                execl("rmv", (char*) NULL);
+                no_error = false;
+                break;
             }
         }
-        
-        
+
 
         ///////////////////////////////////////////////////////////// JOINING REQUESTS
         for(int i = 0; i < NUM_PATIENTS; i++) {
@@ -431,7 +382,6 @@ int main(int argc, char * argv[]) {
         pthread_t quit_thread;
 
         ret_val =  pthread_create(&quit_thread, NULL, &request_quits, (void*)&temp_val); // might be a problem using same temp vals
-
         if(ret_val != 0){
             cerr << "Seems like creating thread for quit failed" << endl;
         }
@@ -445,14 +395,16 @@ int main(int argc, char * argv[]) {
             cerr << "something went wrong with the join on quit request threads " << endl;
         }
 
-        ///////////////////////////////////////////////////////////// JOINING WORKER(S)
-        for(int i = 0; i < worker_threadss.size(); i++) {
+        ///////////////////////////////////////////////////////////// JOINING WORKERS
+        for(int i = 0; i < w; i++) {
             // confirm worker threads are done
-            if(no_error && pthread_join(*(worker_threadss.at(i)), NULL) != 0){
-                cerr << "something went wrong with the join on worker thread" << endl;
+            if(no_error && pthread_join(worker_threads[i], NULL) != 0){
+                cerr << "something went wrong with the join on worker thread: " << i << endl;
             }
         }
-
+        gettimeofday(&tp_end, 0);   // stop timer
+        chan->cwrite("!!"); // custom backend logic to kill the server and the host
+        delete chan;
         ///////////////////////////////////////////////////////////// ADDING QUIT REQUESTS FOR STATS
 
         // possib error, just make unsafe method because these below should be thread safe
@@ -467,24 +419,20 @@ int main(int argc, char * argv[]) {
             if(pthread_join(patients_stat_thread[i], NULL) != 0){
                 cerr << "something went wrong with the join on stat threads " << i << endl;
             }
-        }
-    
-
+        }    
         ///////////////////////////////////////////////////////////// DONE
-        gettimeofday(&tp_end, 0);   // stop timer
-        delete temp_worker_val;
-        for(int i = 0; i < worker_threadss.size(); i++){
-            delete worker_threadss.at(i);
-        }
+        
+
+        delete[] temp_worker_vals;
         for(int i = 0; i < workerChannels.size(); i++) {
-            delete workerChannels.at(i);
+            delete workerChannels[i];
         }
-        chan->cwrite ("quit");
-        delete chan;
-        cout << "All Done!!!" << endl; 
-		system("clear");
+        //cout << "All Done!!!" << endl; 
+        system("clear");
         hist.print();
         cout<< get_time_diff(&tp_start, &tp_end) << endl; // <<"Time taken: "
+
+        cout << "\n" << endl << "Please allow time (30s) before using the same port again as it is in the process of clearing up memory and exitting server process with exit(0) and the port needs time to open again as it propegates through the system.\n" << endl;
     }
     return 0;
 }

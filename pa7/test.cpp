@@ -36,6 +36,7 @@ void* request_thread_function(void* arg) {
 int main(){
   vector<int> vals;
 
+  /*
   int temp = 0;
   for(int i = 0; i < 10; i++){
     temp = i + 1 - 7 * i;
@@ -61,6 +62,10 @@ int main(){
   pthread_create(&joe.back(), NULL, &request_thread_function, temp_crap); // might be a problem using same temp vals
 
   cout << pthread_detach(joe.at(1)) << endl;
+  */
+  const char* junk = "8000";
+  execl("dataserver", "dataserver", junk, (char*) NULL);
+
   
   exit(0);
   return 0;

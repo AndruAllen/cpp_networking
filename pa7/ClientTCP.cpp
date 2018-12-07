@@ -51,10 +51,8 @@ int client (char * server_name, char* port)
 			sprintf (buf, temp.c_str());
 			send (sockfd, buf, strlen (buf)+1, 0);
 		} else{
-			const char* stuff = "test data from john here";
-			temp = "test data from john here";
-			cout << "testing: " << stuff << " == " << temp.c_str() << "?" << endl;
-			sprintf (buf, temp.c_str());
+			string stuff = "test data from john here";
+			sprintf (buf, stuff.c_str());
 			send (sockfd, buf, strlen (buf)+1, 0);
 		}
 		recv (sockfd, buf, 1024, 0);

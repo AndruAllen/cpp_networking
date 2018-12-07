@@ -3,7 +3,8 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <string.h>
+#include <cstring>
+#include <csignal>
 #include <stdlib.h>
 #include <unistd.h>
 #include <iostream>

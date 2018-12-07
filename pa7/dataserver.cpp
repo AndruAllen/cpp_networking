@@ -13,7 +13,8 @@
 #include "reqchannel.h"
 using namespace std;
 
-
+// all moved to network request channel
+/*
 int nchannels = 0;
 pthread_mutex_t newchannel_lock;
 void* handle_process_loop(void* _channel);
@@ -56,7 +57,7 @@ void process_request(RequestChannel* _channel, string _request) {
 }
 
 void* handle_process_loop (void* _channel) {
-	RequestChannel* channel = (RequestChannel *) _channel;
+	NetworkRequestChannel* channel = (NetworkRequestChannel *) _channel;
 	for(;;) {
 		string request = channel->cread();
 		if (request.compare("quit") == 0) {
@@ -65,18 +66,24 @@ void* handle_process_loop (void* _channel) {
 		process_request(channel, request);
 	}
 }
-
+*/
 
 /*--------------------------------------------------------------------------*/
 /* MAIN FUNCTION */
 /*--------------------------------------------------------------------------*/
 
 
-int main(int argc, char * argv[]) {
-	newchannel_lock = PTHREAD_MUTEX_INITIALIZER;
-	RequestChannel control_channel("control", RequestChannel::SERVER_SIDE);
+int main (int ac, char ** av)
+{
+  if (ac < 2){
+    cout << "Usage: ./server <port no> - try 127.0.0.1" << endl;
+    exit (-1);
+  }
+	char* temp = "";
+	//newchannel_lock = PTHREAD_MUTEX_INITIALIZER;
+	NetworkRequestChannel control_channel("control", RequestChannel::SERVER_SIDE, temp, av [1]);
 	try{
-		handle_process_loop (&control_channel);
+		control_channel.handle_process_loop();
 	} catch(...){
 		execl("rmv", (char*) NULL);
 	}
