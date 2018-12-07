@@ -44,8 +44,14 @@ const int MAX_MESSAGE = 255;
 void* server_thread_function(void* arg) {
     char buf [MAX_MESSAGE];
     int my_fd = *((int*) arg); // dereference the void pointer
+	if(my_fd <= 0){
+		cerr << "what the heck? " << my_fd << " " << (int*) arg << endl;
+	}
     char* dt = "data";
     while(1){
+	if(my_fd <= 0){
+                cerr << "what the heck? " << my_fd << " " << (int*) arg << endl;
+        }
         recv (my_fd, buf, sizeof (buf), 0);
         //cout << "server: received msg: " << buf << endl;
     
@@ -57,20 +63,22 @@ void* server_thread_function(void* arg) {
             }
             close(my_fd);
             break;
-        } else {
-            // send
+        } else { // send
+		//cerr << "what did I recieve?: " << buf << " from " << my_fd << endl;
         		if (buf[0] == 'd' && buf[1] == 'a' && buf[2] == 't' && buf[3] == 'a') { // data cause I'm lazy
 							usleep(1000 + (rand() % 5000));
 							string trach = to_string(rand() % 100);
 							const char *msg = trach.c_str();
 							if (send(my_fd, msg, trach.size()+1, 0) == -1) {
+								cerr << "\nhere1" << endl;
                 perror("send");
             	} 
 						} else {
 							const char *msg = "unknown stuff";
-							cerr << msg << " <- you've screwed up because you didn't send data: " << buf << endl;
+							cerr << msg << " <- you've screwed up because you didn't send data: " << buf  << "|" << endl;
 							if (send(my_fd, msg, strlen(msg)+1, 0) == -1) {
-                perror("send");
+								cerr << "\nhere2" << endl;
+								perror("send");
             	} 
 						}
         }
@@ -144,45 +152,51 @@ NetworkRequestChannel::NetworkRequestChannel(const string _name, const Side _sid
 }
 
 NetworkRequestChannel::~NetworkRequestChannel() {
-	//if (my_side == SERVER_SIDE) {
-	//	close(my_fd);
-	//}
+	for(int i; i < server_threads.size(); i++){
+          close(*new_fds.at(i));
+	  delete server_threads.at(i);
+          delete new_fds.at(i);
+  	}
+	close(my_fd);
 }
 
 
 
 int NetworkRequestChannel::handle_process_loop() {
 	int new_fd = 0;
-	vector<int> new_fds;
-  vector<pthread_t> server_threads;
   int ret_val;
 	//cout << "server: waiting for connections..." << endl;
 	while(1) {  
         // main accept() loop
         sin_size = sizeof their_addr;
         if(new_fd == 0){
-            new_fd = accept(my_fd, (struct sockaddr *)&their_addr, &sin_size);
+            int temp = accept(my_fd, (struct sockaddr *)&their_addr, &sin_size);
             if (new_fd == -1) {
                 perror("accept");
                 continue;
             } else {
-                new_fds.push_back(int(new_fd)); // to ensure deep copy
-                server_threads.push_back(pthread_t(0)); // to ensure deep copy
-                ret_val = pthread_create(&(server_threads.back()), NULL, &server_thread_function, (void*)&(new_fds.back())); // might be a problem using same temp vals
+                new_fds.push_back(new int(temp)); // to ensure deep copy
+                //cerr << "vals check: " << temp << " " << new_fds.back() << endl;
+		server_threads.push_back(new pthread_t(0)); // to ensure deep copy
+                ret_val = pthread_create((server_threads.back()), NULL, &server_thread_function, (void*)(new_fds.back())); // might be a problem using same temp vals
                 if(ret_val != 0) {
                     cerr << "Seems like creating thread for " << new_fd << " failed " << server_threads.back() << endl;
                     exit(1);
                 }
-                ret_val = pthread_detach(server_threads.back());
+                ret_val = pthread_detach(*server_threads.back());
                 if(ret_val != 0) {
                     cerr << "Seems like detaching thread for " << new_fd << " failed " << server_threads.back() << endl;
                     exit(1);
                 }
-                //cout << "server: got connection at: " << new_fd << endl;
+                //cout << "server: got connection at: " << temp << endl;
             }
         }
         new_fd = 0;
         //inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
+  }
+  for(int i; i < server_threads.size(); i++){
+	  delete server_threads.at(i);
+	  delete new_fds.at(i);
   }
   close(my_fd);
   return 0;
@@ -202,7 +216,7 @@ string NetworkRequestChannel::cread() {
 }
 
 int NetworkRequestChannel::cwrite(string msg) {
-
+	//cerr << msg << endl;
 	if (msg.size() > MAX_MESSAGE) {
 		execl("rmv", (char*) NULL);
 		return -2;
@@ -212,6 +226,7 @@ int NetworkRequestChannel::cwrite(string msg) {
 	sprintf (buf, msg.c_str());
 
 	if (send(my_fd, buf, msg.size()+1, 0) < 0) { // msg.size() + 1 to include the NULL byte
+		cerr << "error on send: " << buf << endl;
 		execl("rmv", (char*) NULL);
 		return -1;
 		EXITONERROR ("cwrite");

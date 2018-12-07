@@ -92,7 +92,10 @@ private:
   char s[INET6_ADDRSTRLEN];
   int rv;
 
-	//string pipe_name(Mode _mode);
+  vector<int*> new_fds;
+  vector<pthread_t*> server_threads;
+	
+  	//string pipe_name(Mode _mode);
 	//void create_pipe (string _pipe_name);
 	//void open_read_pipe(string _pipe_name);
 	//void open_write_pipe(string _pipe_name)

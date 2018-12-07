@@ -241,7 +241,7 @@ int main(int argc, char * argv[]) {
     }
     if (pid == 0 && run_local){
         const char* send_it = p;
-        //cout << send_it << endl;
+        //cout << "running server now" << send_it << endl;
         execl("dataserver", "dataserver", send_it, (char*) NULL);
     }
     else {
