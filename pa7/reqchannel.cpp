@@ -56,13 +56,15 @@ void* server_thread_function(void* arg) {
         //cout << "server: received msg: " << buf << endl;
     
         if(buf[0] == '!') { //!
-            //pscout << "closing socket " << my_fd << endl;
+            //cout << "closing socket " << my_fd << endl;
+        	  //cout << my_fd << endl;
             if(buf[1] == '!'){ //!!
                 cout << "exitting" << endl;
                 exit(0); // exit entire server, must join all client threads first so possib ERROR fixed if you want by pthread_cont_t and poling on server side
             }
             close(my_fd);
-            break;
+            pthread_exit(NULL);
+    				return (void*)NULL;
         } else { // send
 		//cerr << "what did I recieve?: " << buf << " from " << my_fd << endl;
         		if (buf[0] == 'd' && buf[1] == 'a' && buf[2] == 't' && buf[3] == 'a') { // data cause I'm lazy
@@ -75,7 +77,7 @@ void* server_thread_function(void* arg) {
             	} 
 						} else {
 							const char *msg = "unknown stuff";
-							cerr << msg << " <- you've screwed up because you didn't send data: " << buf  << "|" << endl;
+							cerr << msg << " <- empty:" << buf  << "|" << endl;
 							if (send(my_fd, msg, strlen(msg)+1, 0) == -1) {
 								cerr << "\nhere2" << endl;
 								perror("send");

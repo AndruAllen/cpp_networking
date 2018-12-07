@@ -197,12 +197,14 @@ int main(int argc, char * argv[]) {
     int opt = 0;
     char* h = "127.0.0.1"; // default to local host
     char* p = "8080"; // default to port 8080
+    int z = 0;
+    int k = 1;
     bool run_local = true; // default to running locally
 
     char* lcl_hst1 = "localhost";
     char* lcl_hst2 = "127.0.0.1";
 
-    while ((opt = getopt(argc, argv, "n:w:b:i:h:p:")) != -1) {
+    while ((opt = getopt(argc, argv, "n:w:b:i:h:p:z:k:")) != -1) {
         switch (opt) {
             case 'n':
                 n = atoi(optarg);
@@ -224,7 +226,6 @@ int main(int argc, char * argv[]) {
                 if(strcmp(h,lcl_hst1)==0 || strcmp(h,lcl_hst2)==0){
                     cout << "\nClient program assumes that you have not started a server instance and will start one for you at 127.0.0.1" << endl;
                     h = "127.0.0.1";
-                    run_local = true;
                 } else {
                     cout << "\nClient program assumes that you have started a server instance at " << h << endl;
                     run_local = false;
@@ -233,8 +234,18 @@ int main(int argc, char * argv[]) {
             case 'p':
                 p = optarg;
                 break;
+            case 'z':
+                z = atoi(optarg);
+                break;
+            case 'k':
+                k = atoi(optarg);
+                break;
         }
     }
+    if(z == 1) {
+        run_local = false;
+    }
+
     int pid = -1;
     if(run_local){
         pid = fork();
@@ -262,8 +273,10 @@ int main(int argc, char * argv[]) {
 
         //cout << "CLIENT STARTED:" << endl;
         //cout << "Establishing control channel... " << flush;
-        NetworkRequestChannel *chan = new NetworkRequestChannel("control", RequestChannel::CLIENT_SIDE, h, p);
-        //cout << "done." << endl<< flush;
+        NetworkRequestChannel *chan;
+        if(k == 1) {
+            chan = new NetworkRequestChannel("control", RequestChannel::CLIENT_SIDE, h, p);
+        }//cout << "done." << endl<< flush;
 
         int size_of_buffer = b;
         SafeBuffer request_buffer(size_of_buffer);
@@ -403,8 +416,10 @@ int main(int argc, char * argv[]) {
             }
         }
         gettimeofday(&tp_end, 0);   // stop timer
-        chan->cwrite("!!"); // custom backend logic to kill the server and the host
-        delete chan;
+        if(k == 1) {
+            chan->cwrite("!!"); // custom backend logic to kill the server and the host
+            delete chan;
+        }
         ///////////////////////////////////////////////////////////// ADDING QUIT REQUESTS FOR STATS
 
         // possib error, just make unsafe method because these below should be thread safe
